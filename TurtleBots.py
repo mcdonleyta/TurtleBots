@@ -47,11 +47,11 @@ class World:
     cols = -1
 
     def emptySpace(self):
-        r = random.randint(0, self.rows)
-        c = random.randint(0, self.cols)
+        r = random.randint(0, self.rows-1)
+        c = random.randint(0, self.cols-1)
         while(self.mat[r][c] != 0):
-            r = random.randint(0, self.rows)
-            c = random.randint(0, self.cols)
+            r = random.randint(0, self.rows-1)
+            c = random.randint(0, self.cols-1)
 
         return (r,c)
             
@@ -175,7 +175,7 @@ gc = pos[1]
 gr = pos[0]
 
 pos = myMap.emptySpace()
-prey = Robot(pos[0], pos[1], 0.4, 0.5)
+prey = Robot(pos[0], pos[1], 0.23, 0.23)
 
 pos = myMap.emptySpace()
 predator = Robot(pos[0], pos[1], 0.4, 0.5)
@@ -212,6 +212,6 @@ while(True):
     turtle.color((1,1,0))
     myView.drawSquare(predator.r, predator.c)
     
-    #turtle.update()
+    turtle.update()
     
     
