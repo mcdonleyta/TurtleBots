@@ -2,10 +2,6 @@ import random
 import turtle
 import copy
 
-turtle.speed(0)
-turtle.delay(0)
-turtle.tracer(10000, 0)
-
 def mapVal(val, high, low, toHigh, toLow):
     ratio = (toHigh - toLow)/(high - low)
     return ((val-low)*ratio) + toLow
@@ -13,10 +9,26 @@ def mapVal(val, high, low, toHigh, toLow):
 class Screen:
     width = turtle.window_width()
     height = turtle.window_height()
+
+    mat = [] # a bitmap save of the drawSqaure() canvas
+
+    def resetTurtle(self, clear=False):  #Preserves image while reseting turtle stamps
+        turtle.reset()      # this greatly decreases turtle's accumulated slow down
+        for r in range(0, len(self.mat)):
+            for c in range(0, len(self.mat[0])):
+                if(self.mat[r][c] != 0):
+                    if(clear == False or self.mat[r][c] == (0,0,0)):
+                        turtle.color(self.mat[r][c])
+                        self.drawSquare(r, c)
+                    else:
+                        self.mat[r][c] = 0
+        turtle.update()
     
     def drawSquare(self, r, c):
+        self.mat[r][c] = turtle.pencolor() #save pixel in bitmap
+        
         blocksize = blockSize = self.width/cols
-        scale = 25*1.4/rows
+        scale = 30*1.4/rows
         x = mapVal(c, 0, cols, -self.width/2, self.width/2) + blockSize/2
         y = mapVal(r, 0, rows, -self.height/2, self.height/2) + blockSize/2
 
@@ -31,12 +43,12 @@ class Screen:
     def draw(self, world):
         rows = world.rows
         cols = world.cols
-        mat = world.mat
+        self.mat = copy.deepcopy(world.mat)
         
         ## Draw Screen
         for r in range(0, rows):
             for c in range(0, cols):
-                if(mat[r][c] == 1):
+                if(self.mat[r][c] == 1):
                     turtle.color((0,0,0))
                     self.drawSquare(r, c)
 
@@ -108,46 +120,101 @@ class Robot:
     lastC = 0
     r = 0
     c = 0
+    rot = 1
+    
 
     gr = 0 #goal
     gc = 0
 
-    deltaX = 0
-    deltaY = 0
+    deltaX = -1
+    deltaY = 1
 
     score = 0
 
-    dirRate = 0
-    goalRate = 0
+    genes = []
 
-    def __init__(self, r, c, dr, gr):
+    def __init__(self, r, c, genes):
         self.r = r
         self.c = c
         self.score = 0
-        self.dirRate = dr
-        self.goalRate = gr
+        self.wins = 0
+        self.genes = genes
+
+    def rotate(self, direction):
+        if(direction == 1):
+            self.turnRight()
+        elif(direction == -1):
+            self.turnLeft()
+
+    def turnRight(self):
+        if(self.deltaX == 0):
+            self.deltaX = self.deltaY 
+        elif(self.deltaY == 0):
+            self.deltaY = -1*self.deltaX
+        elif(self.deltaY == self.deltaX):
+            self.deltaY = 0
+        else:
+            self.deltaX = 0
+
+    def turnLeft(self):
+        if(self.deltaX == 0):
+            self.deltaX = -1*self.deltaY 
+        elif(self.deltaY == 0):
+            self.deltaY = self.deltaX
+        elif(self.deltaY == self.deltaX):
+            self.deltaX = 0
+        else:
+            self.deltaY = 0
 
     def move(self, world):
         #desire to change directions
         rows = world.rows
         cols = world.cols
-        if(random.random() < self.dirRate):
+        dirRate = self.genes[0]
+        goalRate = self.genes[1]
+        rotateRate = self.genes[2]
+        rotateChangeRate = self.genes[3]
+        randomRate = self.genes[4]
+        
+        if(random.random() < dirRate):
             #desire to move toward goal
-            if(random.random() < self.goalRate):
+            if(random.random() < goalRate):
                 goalX = self.gc - self.c
                 goalY = self.gr - self.r
                 if(goalX != 0): goalX = goalX // abs(goalX)
                 if(goalY != 0): goalY = goalY // abs(goalY)
-                
+
+                #self.rot = -1
                 self.deltaX = goalX
                 self.deltaY = goalY
-            else:
+            elif(random.random() < rotateRate):
+                self.rotate(self.rot)
+            elif(random.random() < rotateChangeRate):
+                self.rot *= -1                
+            elif(random.random() < randomRate):
                 self.deltaX = random.randint(-1, 1)
                 self.deltaY = random.randint(-1, 1)
+                if(self.deltaX == 0 and self.deltaY == 0):
+                    if(random.random() < 0.5):
+                        if(random.random() < 0.5):
+                            self.deltaX = 1
+                        else:
+                            self.deltaX = -1
+                    else:
+                        if(random.random() < 0.5):
+                            self.deltaY = 1
+                        else:
+                            self.deltaY = -1
+
 
         if( self.r+self.deltaY>=0 and self.r+self.deltaY<rows  and self.c+self.deltaX>=0 and self.c+self.deltaX<cols and world.mat[self.r+self.deltaY][self.c+self.deltaX] == 0):
             self.c = self.c + self.deltaX
             self.r = self.r + self.deltaY
+        else: 
+            self.rotate(-1*self.rot) #Avoid obstacles by rotating the opposite direction
+            if( self.r+self.deltaY>=0 and self.r+self.deltaY<rows  and self.c+self.deltaX>=0 and self.c+self.deltaX<cols and world.mat[self.r+self.deltaY][self.c+self.deltaX] == 0):
+                self.c = self.c + self.deltaX
+                self.r = self.r + self.deltaY
             
 
         self.lastR = self.r
@@ -163,22 +230,42 @@ class Robot:
         self.gc = c
 
 
-def runTrials(bots, num, steps, world):
+def runTrials(bots, num, steps, world, view):
+    global turtle
     oldBots = copy.deepcopy(bots)
     for trials in range(0, num):
       print("Trial %d" % trials)
       for s in range(0, steps):
         if(s % (steps/20) == 0):
             print(".", end="")
+            turtle.update()
         for i in range(0, len(bots)):
             bot = bots[i]
             if(bot.r != bot.gr or bot.c != bot.gc):
+                if(i < 2):
+                    turtle.color(bot.genes[0:3])
+                    view.drawSquare(bot.r,bot.c)
                 bot.move(world)
+                if(i < 2):
+                    turtle.color((1, 0, 1))
+                    view.drawSquare(bot.r,bot.c)
+                #turtle.update()
 
       print("")
       #Reset for next trial
+      view.resetTurtle()
       for r in range(0, len(bots)):
+          if(bots[r].r == bots[r].gr and bots[r].c == bots[r].gc):
+              bots[r].wins += 1
+          else:
+              #Penalty for bots that don't make the goal
+              xdist = abs(bots[r].gc - bots[r].c)
+              ydist = abs(bots[r].gr - bots[r].r)
+              bots[r].score += (xdist+1)*(ydist+1)
+
           bots[r].setPos(oldBots[r].r, oldBots[r].c)
+
+    
 
 def selectBots(bots, num):
     #pick the best bots
@@ -191,7 +278,7 @@ def selectBots(bots, num):
             if(fit < minFit):
                 minFit = bots[i].score
                 minI = i
-         nextBots.append(bots[minI])
+         nextBots.append(copy.deepcopy(bots[minI]))
          bots.remove(bots[minI])
          minI=0
 
@@ -200,25 +287,31 @@ def selectBots(bots, num):
 def breedBots(bots, num):
     lenBots = len(bots)
     for m in range(0, num):
-     for i in range(0, lenBots-1):
+     for i in range(0, lenBots):
         j=i
         while(j == i):
             j = random.randint(0, lenBots-1)
 
-        childType = random.randint(0, 105)
-        if(childType < 5):    #Mutation
-            if(random.random() < .5):
-                bots.append(Robot(0, 0, random.random(), nextBots[i].goalRate))            
-            else:
-                bots.append(Robot(0, 0, nextBots[i].dirRate, random.random()))
-        elif(childType < 26):
-            bots.append(Robot(0, 0, nextBots[j].dirRate, nextBots[i].goalRate))
-        elif(childType < 52):
-            bots.append(Robot(0, 0, nextBots[i].dirRate, nextBots[j].goalRate))
-        elif(childType < 78):
-            bots.append(Robot(0, 0, nextBots[i].dirRate, (nextBots[j].goalRate+nextBots[i].goalRate)/2))
+        genesP1 = copy.deepcopy(bots[i].genes)
+        genesP2 = copy.deepcopy(bots[j].genes)
+
+        for g in range(0, len(genesP1)):
+            if(random.random() < 0.05):    #Mutation
+                genesP1[g] = random.random()
+            if(random.random() < 0.05):
+                genesP2[g] = random.random()
+
+        if(random.random() < 0.5):
+            split = random.randint(1, len(genesP1)-1)
+            genes = genesP1[0:split]
+            genes = genes + genesP2[split:len(genesP2)]
         else:
-            bots.append(Robot(0, 0, (nextBots[j].goalRate+nextBots[i].goalRate)/2, nextBots[i].goalRate))
+            split = random.randint(0, len(genesP1)-1)
+            genes = genesP1[0:split]
+            for g in range(split, len(genesP1)):
+                genes.append((genesP1[g] + genesP2[g])/2)
+
+        bots.append(Robot(0,0,genes)) #add child
 
     return bots
 
@@ -227,6 +320,10 @@ rows = 128
 cols = 128
 myMap = World(rows, cols, 1, 0.0025, 18, 0.1)
 
+turtle.speed(0)
+turtle.delay(0)
+turtle.ht()
+turtle.tracer(0, 0)
 myView = Screen()
 myView.draw(myMap)
 
@@ -239,12 +336,39 @@ random.seed(None)
 
 turtle.color((1, 1, 0))
 myView.drawSquare(gr,gc)
+turtle.color((0, 1, 1))
+myView.drawSquare(pos[0],pos[1])
 turtle.update()
 
 ## Create bots
 bots = []
 for i in range (0, 1000):
-    bots.append(Robot(pos[0], pos[1], random.random(), random.random()))
+    #genes = [0.81, 0.15, 0.99, 0.02] #15000/20 @ 6000 steps
+    #bots.append(Robot(pos[0], pos[1], genes))
+
+    #genes = [0.4810, 0.1565, 0.9598, 0.0427] #9900/10 @ 6000 steps self.rot=-1
+    #bots.append(Robot(pos[0], pos[1], genes))
+
+
+    #genes = [0.7305, 0.2553, 0.9998, 0.4055]
+    #bots.append(Robot(pos[0], pos[1], genes))
+    #genes = [0.8099, 0.3231, 0.9999, 0.4397]
+    #bots.append(Robot(pos[0], pos[1], genes))    
+    #genes = [0.5684, 0.2010, 0.9999, 0.4110]
+    #bots.append(Robot(pos[0], pos[1], genes))    
+    #genes = [0.3201, 0.2346, 0.9765, 0.0254]
+    #bots.append(Robot(pos[0], pos[1], genes))    
+    #genes = [0.3243, 0.1632, 0.6869, 0.0978]
+    #bots.append(Robot(pos[0], pos[1], genes))    
+    #genes = [0.2912, 0.1718, 0.6445, 0.2391]
+    #bots.append(Robot(pos[0], pos[1], genes))    
+    #genes = [0.2181, 0.2264, 0.7690, 0.4489]
+    #bots.append(Robot(pos[0], pos[1], genes))
+
+    genes = []
+    for g in range(0, 5):
+        genes.append(random.random())
+    bots.append(Robot(pos[0], pos[1], genes))
 
 ## Run evolution
 for generation in range(0, 20):
@@ -253,12 +377,21 @@ for generation in range(0, 20):
       bots[i].setPos(pos[0],pos[1])
       bots[i].setGoal(gr, gc)
       bots[i].score = 0
+      bots[i].wins = 0
 
-    runTrials(bots, 20, 6000, myMap)
+    runTrials(bots, 10, 6000, myMap, myView)
+    myView.resetTurtle(clear=True)
 
     nextBots = selectBots(bots, 50)
     print("Fittest Bots: ")
     for i in range(0, len(nextBots)):
-        print("Bot%d[%f, %f] scored %d" % (i, nextBots[i].dirRate, nextBots[i].goalRate, nextBots[i].score))  
+        print("Bot%d[" % i, end="")
+        for g in nextBots[i].genes:
+            print("%.4f, " % g, end="")
+        if(nextBots[i].wins != 0):
+            print("] scored %d/%d ~%.2f" % (nextBots[i].score, nextBots[i].wins, nextBots[i].score/nextBots[i].wins))
+        else:
+            print("] scored %d/%d" % (nextBots[i].score, nextBots[i].wins))
+            
 
     bots = breedBots(nextBots, 20)
