@@ -120,14 +120,14 @@ class Robot:
     lastC = 0
     r = 0
     c = 0
-    rot = 1
+    rot = 0
     
 
     gr = 0 #goal
     gc = 0
 
-    deltaX = -1
-    deltaY = 1
+    deltaX = 0
+    deltaY = 0
 
     score = 0
 
@@ -145,6 +145,23 @@ class Robot:
             self.turnRight()
         elif(direction == -1):
             self.turnLeft()
+
+    def rotToward(self, dx, dy):
+        if(self.deltaX != dx or self.deltaY != dy):
+            saveDX = self.deltaX
+            saveDY = self.deltaY
+            right=0
+            while(self.deltaX != dx or self.deltaY != dy):
+                right += 1
+                self.turnRight()
+
+            if(right < 4):
+                self.rot = 1
+            elif(right > 4):
+                self.rot = -1
+
+            self.deltaX = saveDX
+            self.deltaY = saveDY
 
     def turnRight(self):
         if(self.deltaX == 0):
@@ -171,27 +188,30 @@ class Robot:
         rows = world.rows
         cols = world.cols
         dirRate = self.genes[0]
-        goalRate = self.genes[1]
-        rotateRate = self.genes[2]
-        rotateChangeRate = self.genes[3]
+        goalUpdateRate = self.genes[1]
+        rotateUpdateRate = self.genes[2]
+        rotateRate = self.genes[3]
         randomRate = self.genes[4]
         
         if(random.random() < dirRate):
             #desire to move toward goal
-            if(random.random() < goalRate):
+            if(random.random() < goalUpdateRate):
                 goalX = self.gc - self.c
                 goalY = self.gr - self.r
                 if(goalX != 0): goalX = goalX // abs(goalX)
                 if(goalY != 0): goalY = goalY // abs(goalY)
 
-                #self.rot = -1
                 self.deltaX = goalX
                 self.deltaY = goalY
-            elif(random.random() < rotateRate):
-                self.rotate(self.rot)
-            elif(random.random() < rotateChangeRate):
-                self.rot *= -1                
+            elif(random.random() < rotateUpdateRate):
+                goalX = self.gc - self.c
+                goalY = self.gr - self.r
+                if(goalX != 0): goalX = goalX // abs(goalX)
+                if(goalY != 0): goalY = goalY // abs(goalY)
+
+                self.rotToward(goalX, goalY)
             elif(random.random() < randomRate):
+                #self.rot *= -1                
                 self.deltaX = random.randint(-1, 1)
                 self.deltaY = random.randint(-1, 1)
                 if(self.deltaX == 0 and self.deltaY == 0):
@@ -205,6 +225,9 @@ class Robot:
                             self.deltaY = 1
                         else:
                             self.deltaY = -1
+                
+            if(random.random() < rotateRate):
+                self.rotate(self.rot)
 
 
         if( self.r+self.deltaY>=0 and self.r+self.deltaY<rows  and self.c+self.deltaX>=0 and self.c+self.deltaX<cols and world.mat[self.r+self.deltaY][self.c+self.deltaX] == 0):
@@ -242,18 +265,18 @@ def runTrials(bots, num, steps, world, view):
         for i in range(0, len(bots)):
             bot = bots[i]
             if(bot.r != bot.gr or bot.c != bot.gc):
-                if(i < 2):
+                if(i == 0 or i == 0):
                     turtle.color(bot.genes[0:3])
                     view.drawSquare(bot.r,bot.c)
                 bot.move(world)
-                if(i < 2):
+                if(i == 0 or i == 0):
                     turtle.color((1, 0, 1))
                     view.drawSquare(bot.r,bot.c)
                 #turtle.update()
 
       print("")
       #Reset for next trial
-      view.resetTurtle()
+      view.resetTurtle(clear=True)
       for r in range(0, len(bots)):
           if(bots[r].r == bots[r].gr and bots[r].c == bots[r].gc):
               bots[r].wins += 1
@@ -264,6 +287,23 @@ def runTrials(bots, num, steps, world, view):
               bots[r].score += (xdist+1)*(ydist+1)
 
           bots[r].setPos(oldBots[r].r, oldBots[r].c)
+          bots[r].deltaX = -1
+          bots[r].deltaY = 1
+          bots[r].rot = 1
+
+##          if(random.random() < .5):
+##              bots[r].deltaX = 1
+##          else:
+##              bots[r].deltaX = -1
+##          if(random.random() < .5):
+##              bots[r].deltaY = 1
+##          else:
+##              bots[r].deltaY = -1
+##          if(random.random() < .5):
+##              bots[r].rot = 1
+##          else:
+##              bots[r].rot = -1
+          
 
     
 
@@ -365,6 +405,9 @@ for i in range (0, 1000):
     #genes = [0.2181, 0.2264, 0.7690, 0.4489]
     #bots.append(Robot(pos[0], pos[1], genes))
 
+    #genes = [.5, 0.65, 0.02, .9, 0.02] #15000/20 @ 6000 steps
+    #bots.append(Robot(pos[0], pos[1], genes))
+
     genes = []
     for g in range(0, 5):
         genes.append(random.random())
@@ -378,6 +421,22 @@ for generation in range(0, 20):
       bots[i].setGoal(gr, gc)
       bots[i].score = 0
       bots[i].wins = 0
+      bots[i].deltaX = -1
+      bots[i].deltaY = 1
+      bots[i].rot = 1
+##      if(random.random() < .5 and False):
+##          bots[i].deltaX = 1
+##      else:
+##          bots[i].deltaX = -1
+##      if(random.random() < .5 or True):
+##          bots[i].deltaY = 1
+##      else:
+##          bots[i].deltaY = -1
+##      if(random.random() < .5 or True):
+##          bots[i].rot = 1
+##      else:
+##          bots[i].rot = -1
+
 
     runTrials(bots, 10, 6000, myMap, myView)
     myView.resetTurtle(clear=True)
